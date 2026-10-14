@@ -8,14 +8,26 @@ rust-version.workspace = true
 [dependencies]
 base64.workspace = true
 getrandom.workspace = true
-opennow-streamer-platform = { path = "../opennow-streamer-platform" }
 opennow-streamer-hid = { path = "../opennow-streamer-hid" }
 opennow-streamer-protocol = { path = "../opennow-streamer-protocol" }
 opennow-streamer-transport = { path = "../opennow-streamer-transport" }
 rustls.workspace = true
 serde_json.workspace = true
 tungstenite.workspace = true
+opennow-streamer-platform = { path = "../opennow-streamer-platform", optional = true }
+opennow-streamer-platform-webos = { path = "../opennow-streamer-platform-webos", optional = true }
+
+[features]
+default = ["desktop-platform"]
+# The SDL/OpenH264/Vulkan desktop media runtime.
+desktop-platform = ["dep:opennow-streamer-platform"]
+# A runtime with the same API whose decode/output is supplied by the embedding application
+# (LG webOS, where the TV's hardware decoder is driven outside this workspace). Build it with
+# `default-features = false`; the two are mutually exclusive.
+webos-platform = ["dep:opennow-streamer-platform-webos"]
 
 [dev-dependencies]
-opennow-streamer-platform = { path = "../opennow-streamer-platform", features = ["test-runtime"] }
 rcgen = { version = "0.14", default-features = false, features = ["crypto", "ring"] }
+
+[target.'cfg(not(all(target_os = "linux", target_arch = "arm")))'.dev-dependencies]
+opennow-streamer-platform = { path = "../opennow-streamer-platform", features = ["test-runtime"] }

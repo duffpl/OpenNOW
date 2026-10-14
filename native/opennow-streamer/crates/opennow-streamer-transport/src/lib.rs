@@ -15,6 +15,7 @@ mod nvst_haptics;
 mod nvst_input;
 mod nvst_microphone;
 mod nvst_network;
+mod nvst_udp_pump;
 
 pub use frame_stage_timing::{FrameStageTimings, StageSummary};
 pub use nvst_haptics::{NvstControllerRumble, NvstHaptics};

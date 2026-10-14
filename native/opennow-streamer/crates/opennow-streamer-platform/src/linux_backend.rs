@@ -5,6 +5,8 @@ use opennow_streamer_platform_linux::{
 };
 use opennow_streamer_protocol::{CodecCapability, VideoBackendCapability};
 
+use crate::media::LinuxColorQuality;
+
 const VIDEO_BACKEND_ENV: &str = "OPENNOW_NATIVE_VIDEO_BACKEND";
 const WINDOW_SYSTEM_ENV: &str = "OPENNOW_NATIVE_WINDOW_SYSTEM";
 const CODECS: [&str; 3] = ["h264", "h265", "av1"];

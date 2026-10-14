@@ -1,0 +1,10 @@
+[package]
+name = "opennow-streamer-platform-webos"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+opennow-streamer-media-types = { path = "../opennow-streamer-media-types" }
+opennow-streamer-protocol = { path = "../opennow-streamer-protocol" }

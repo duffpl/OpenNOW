@@ -1663,6 +1663,7 @@ dependencies = [
  "getrandom 0.3.4",
  "opennow-streamer-hid",
  "opennow-streamer-platform",
+ "opennow-streamer-platform-webos",
  "opennow-streamer-protocol",
  "opennow-streamer-transport",
  "rcgen",
@@ -1687,6 +1688,14 @@ name = "opennow-streamer-hid"
 version = "0.2.0"
 
 [[package]]
+name = "opennow-streamer-media-types"
+version = "0.2.0"
+dependencies = [
+ "opennow-streamer-protocol",
+ "serde_json",
+]
+
+[[package]]
 name = "opennow-streamer-platform"
 version = "0.2.0"
 dependencies = [
@@ -1698,6 +1707,7 @@ dependencies = [
  "objc2-app-kit",
  "objc2-foundation",
  "openh264",
+ "opennow-streamer-media-types",
  "opennow-streamer-platform-linux",
  "opennow-streamer-platform-macos",
  "opennow-streamer-platform-windows",
@@ -1752,6 +1762,14 @@ dependencies = [
  "objc2-video-toolbox",
  "opus",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "opennow-streamer-platform-webos"
+version = "0.2.0"
+dependencies = [
+ "opennow-streamer-media-types",
+ "opennow-streamer-protocol",
 ]
 
 [[package]]

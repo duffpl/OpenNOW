@@ -1,0 +1,10 @@
+[package]
+name = "opennow-streamer-media-types"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+opennow-streamer-protocol = { path = "../opennow-streamer-protocol" }
+serde_json.workspace = true

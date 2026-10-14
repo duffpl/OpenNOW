@@ -7,6 +7,8 @@ use std::time::Duration;
 
 use opennow_streamer_protocol::{AudioDevice, AudioOutputDevice, RenderSurface};
 
+pub use opennow_streamer_media_types::MediaRuntimeControl;
+
 use crate::GraphicsFramePublisher;
 use crate::media::{MediaFeedback, MediaSession, MediaSessionConfig, MediaStreamConfig};
 #[cfg(target_os = "windows")]
@@ -23,11 +25,6 @@ const HOST_POLL_INTERVAL: Duration = Duration::from_micros(250);
 const HOST_START_TIMEOUT: Duration = Duration::from_secs(10);
 const HOST_CONTROL_TIMEOUT: Duration = Duration::from_secs(2);
 const MICROPHONE_HOST_POLL_INTERVAL: Duration = Duration::from_millis(20);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MediaRuntimeControl {
-    PointerLock,
-}
 
 #[cfg(target_os = "macos")]
 pub(crate) enum MacH264Configuration {

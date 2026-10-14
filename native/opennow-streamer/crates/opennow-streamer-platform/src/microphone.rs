@@ -8,25 +8,12 @@ use std::time::{Duration, Instant};
 use sdl2::audio::AudioCallback;
 use sdl2::sys::{self, SDL_AudioStatus};
 
-pub const MICROPHONE_SAMPLE_RATE: u32 = 48_000;
-// The server describes `mic.frameSize:10`: 10 ms at 48 kHz.
-pub const MICROPHONE_FRAME_SAMPLES: usize = 480;
+pub use opennow_streamer_media_types::{
+    EncodedMicrophoneFrame, MICROPHONE_FRAME_SAMPLES, MICROPHONE_SAMPLE_RATE, MicrophoneStatus,
+};
+
 const QUEUE_CAPACITY: usize = 5;
 const MAX_FRAME_AGE: Duration = Duration::from_millis(100);
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EncodedMicrophoneFrame {
-    pub opus: Vec<u8>,
-    pub timestamp: u32,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MicrophoneStatus {
-    pub enabled: bool,
-    pub error: Option<String>,
-    pub dropped_pcm_frames: u64,
-    pub dropped_encoded_frames: u64,
-}
 
 #[derive(Debug)]
 struct PcmFrame {

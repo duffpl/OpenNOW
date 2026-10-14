@@ -1,3 +1,10 @@
+#[cfg(all(feature = "desktop-platform", feature = "webos-platform"))]
+compile_error!("features `desktop-platform` and `webos-platform` are mutually exclusive");
+#[cfg(not(any(feature = "desktop-platform", feature = "webos-platform")))]
+compile_error!("enable exactly one of `desktop-platform` or `webos-platform`");
+#[cfg(feature = "webos-platform")]
+extern crate opennow_streamer_platform_webos as opennow_streamer_platform;
+
 use std::net::UdpSocket;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc::{Receiver, Sender, SyncSender, TrySendError};

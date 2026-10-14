@@ -10,6 +10,8 @@ use oxideav_mkv::avc::annexb_to_avcc;
 use oxideav_mkv::mux::MkvMuxer;
 use scuffle_av1::{ObuHeader, ObuType, seq::SequenceHeaderObu};
 
+pub use opennow_streamer_media_types::RecordingSummary;
+
 use crate::media::{
     EncodedFrame, EncodedRecordingReceiver, MediaCodec, MediaStreamConfig, MediaVideoCodec,
 };
@@ -81,13 +83,6 @@ pub fn record_replay_matroska(
     snapshot.frames.clear();
     let _ = std::fs::remove_file(&part_path);
     result
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RecordingSummary {
-    pub path: PathBuf,
-    pub video_packets: u64,
-    pub audio_packets: u64,
 }
 
 struct ActiveMuxer {
