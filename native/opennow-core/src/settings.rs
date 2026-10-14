@@ -469,6 +469,8 @@ impl SettingsStore {
             }
         }
         normalize_choice(&mut self.values, "frameGeneration", &["off", "2x"], "off");
+        normalize_choice(&mut self.values, "reportedPlatform", &["auto", "windows", "macos"], "auto");
+        crate::cloudmatch::set_reported_platform(self.values["reportedPlatform"].as_str().unwrap_or("auto"));
         normalize_choice(
             &mut self.values,
             "upscaling",
@@ -1094,7 +1096,7 @@ fn defaults() -> Map<String, Value> {
         "sessionClockShowEveryMinutes":60, "sessionClockShowDurationSeconds":30,
         "windowWidth":1400, "windowHeight":900, "keyboardLayout":"en-US",
         "gameLanguage":"en_US", "enablePersistingInGameSettings":true, "enableL4S":false,
-        "identifyAsSteamDeck":false, "steamBigPictureMode":false,
+        "identifyAsSteamDeck":false, "steamBigPictureMode":false, "reportedPlatform":"auto",
         "enableCloudGsync":false, "discordRichPresence":false,
         "autoCheckForUpdates":true, "autoDownloadUpdates":false,
         "updateChannel":crate::version::update_channel(crate::version::APPLICATION_VERSION),

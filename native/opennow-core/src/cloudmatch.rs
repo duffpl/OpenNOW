@@ -1471,6 +1471,13 @@ fn build_create_body(app_id: &str, params: &Value, settings: &Value, device_id: 
     });
     features["mouseMovementFlags"] = json!(0);
     features["trueHdr"] = json!(false);
+    // As OpenNOW for macOS sends with HDR on, where HDR works. Without these an LG webOS TV
+    // session was accepted as HDR yet the cloud PC's output stayed SDR (2026-10-13).
+    if hdr && setting_string(settings, "reportedPlatform", "auto") != "auto" {
+        features["trueHdr"] = json!(true);
+        features["sdrColorSpace"] = json!(2);
+        features["hdrColorSpace"] = json!(0);
+    }
     features["hidDevices"] = Value::Null;
     json!({"sessionRequestData":{
         "appId":app_id.parse::<i64>().unwrap_or_default(),
@@ -2545,7 +2552,14 @@ fn app_launch_mode(params: &Value) -> i64 {
     }
 }
 
+/// `reportedPlatform` lets an embedder on a platform CloudMatch treats as SDR-only (a TV running
+/// Linux) present as a desktop client, whose session the server sets up for HDR.
 fn platform_name(settings: &Value) -> &'static str {
+    match setting_string(settings, "reportedPlatform", "auto").as_str() {
+        "windows" => return "windows",
+        "macos" => return "MacOSX",
+        _ => {}
+    }
     if setting_bool(settings, "identifyAsSteamDeck", false) {
         "SteamOS"
     } else if cfg!(target_os = "windows") {
@@ -2558,6 +2572,11 @@ fn platform_name(settings: &Value) -> &'static str {
 }
 
 fn device_os() -> &'static str {
+    match reported_platform() {
+        "windows" => return "WINDOWS",
+        "macos" => return "MACOS",
+        _ => {}
+    }
     if cfg!(target_os = "windows") {
         "WINDOWS"
     } else if cfg!(target_os = "macos") {
@@ -2567,12 +2586,29 @@ fn device_os() -> &'static str {
     }
 }
 
+/// Mirrors the `reportedPlatform` setting for the request headers, which are built in places
+/// that have no settings at hand.
+static REPORTED_PLATFORM: std::sync::RwLock<&'static str> = std::sync::RwLock::new("auto");
+
+pub(crate) fn set_reported_platform(value: &str) {
+    let value = match value {
+        "windows" => "windows",
+        "macos" => "macos",
+        _ => "auto",
+    };
+    *REPORTED_PLATFORM.write().unwrap_or_else(std::sync::PoisonError::into_inner) = value;
+}
+
+fn reported_platform() -> &'static str {
+    *REPORTED_PLATFORM.read().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
 fn device_type() -> &'static str {
     "DESKTOP"
 }
 
 fn device_make() -> &'static str {
-    if cfg!(target_os = "macos") {
+    if reported_platform() == "macos" || (reported_platform() == "auto" && cfg!(target_os = "macos")) {
         "Apple"
     } else {
         "UNKNOWN"
@@ -2584,9 +2620,9 @@ fn device_model() -> &'static str {
 }
 
 fn bifrost_user_agent() -> String {
-    let platform = if cfg!(target_os = "windows") {
+    let platform = if reported_platform() == "windows" || (reported_platform() == "auto" && cfg!(target_os = "windows")) {
         "Windows NT 10.0"
-    } else if cfg!(target_os = "macos") {
+    } else if reported_platform() == "macos" || cfg!(target_os = "macos") {
         "MacOSX"
     } else {
         "Linux"
