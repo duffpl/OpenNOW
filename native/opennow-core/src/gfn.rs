@@ -4791,6 +4791,37 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn account_library_mapping_passes_description_ratings_and_release_date() {
+        let game = app_to_game(&json!({
+            "id":"cms-cyberpunk", "title":"Cyberpunk 2077",
+            "shortDescription":"An open-world action adventure.",
+            "contentRatings":[
+                {"type":"PEGI","categoryKey":"18","contentDescriptorKeys":["VIOLENCE","BAD_LANGUAGE"]},
+                {"type":"ESRB","categoryKey":"M","contentDescriptorKeys":null},
+                {"type":"USK"}
+            ],
+            "computedValues":{"earliestReleaseDate":"2020-12-10T00:00:00.000000+0000"},
+            "variants":[{"id":"1001","appStore":"STEAM"}]
+        }))
+        .unwrap();
+        assert_eq!(game["description"], "An open-world action adventure.");
+        assert_eq!(game["contentRatings"], json!([
+            {"system":"PEGI","category":"18","descriptors":["VIOLENCE","BAD_LANGUAGE"]},
+            {"system":"ESRB","category":"M","descriptors":[]}
+        ]));
+        assert_eq!(game["releaseDate"], "2020-12-10T00:00:00.000000+0000");
+
+        let bare = app_to_game(&json!({
+            "id":"cms-bare", "title":"Bare", "contentRatings":null, "computedValues":{"earliestReleaseDate":""},
+            "variants":[{"id":"1002","appStore":"EPIC"}]
+        }))
+        .unwrap();
+        assert_eq!(bare["description"], Value::Null);
+        assert_eq!(bare["contentRatings"], json!([]));
+        assert_eq!(bare["releaseDate"], Value::Null);
+    }
+
+    #[test]
     fn account_library_mapping_preserves_every_platform_ownership_state() {
         let game = app_to_game(&json!({
             "id":"cms-multi-store",

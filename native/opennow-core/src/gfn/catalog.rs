@@ -160,7 +160,9 @@ const LIBRARY_QUERY: &str = r#"query GetLibraryApps(
   apps(vpcId: $vpcId, language: $locale, orderBy: $sortString, first: $fetchCount, after: $cursor, filters: $filters) {
     numberReturned numberSupported pageInfo { hasNextPage endCursor totalCount }
     items {
-      id title developerName publisherName genres supportedControls
+      id title developerName publisherName genres supportedControls shortDescription
+      contentRatings { type categoryKey contentDescriptorKeys }
+      computedValues { earliestReleaseDate }
       library { favorited }
       images { KEY_ART KEY_IMAGE GAME_BOX_ART TV_BANNER HERO_IMAGE MARQUEE_HERO_IMAGE FEATURE_IMAGE GAME_LOGO SCREENSHOTS }
       variants {
@@ -369,7 +371,7 @@ impl GfnService {
             let (kind, ty, ids) = if let Some(id) = &app_id { ("appIds","String",json!([id])) } else { ("variantIds","Int",json!([cms_id])) };
             let fields = STORE_BROWSE_QUERY.split("    items {").nth(1).expect("catalog item selection");
             let fields = fields.strip_suffix("  }\n}").expect("catalog query suffix");
-            let fields = fields.replace("id title developerName", "shortDescription computedValues { paymentModels { __typename } } id title developerName")
+            let fields = fields.replace("id title developerName", "shortDescription contentRatings { type categoryKey contentDescriptorKeys } computedValues { paymentModels { __typename } earliestReleaseDate } id title developerName")
                 .replace("itemMetadata { campaignIds }", "")
                 .replace("status\n          features", "status\n          supportedLanguages { language ... on GfnLanguageSettings { availableFeatures setMethod } }\n          features");
             let query = format!("query OpenNowGame($vpcId:String!,$locale:String!,$ids:[{ty}]!) {{ apps(vpcId:$vpcId,language:$locale,{kind}:$ids) {{ items {{ {fields} }} }}");
@@ -937,6 +939,8 @@ pub(super) fn app_to_game(app: &Value) -> Option<Value> {
         "campaignIds":app["itemMetadata"]["campaignIds"],
         "paymentModels":app["computedValues"]["paymentModels"],
         "description":app["shortDescription"],
+        "contentRatings":content_ratings(&app["contentRatings"]),
+        "releaseDate":app["computedValues"]["earliestReleaseDate"].as_str().filter(|date| !date.trim().is_empty()),
         "membershipTierLabel":app["gfn"]["minimumMembershipTierLabel"],
         "playabilityState":app["gfn"]["playabilityState"],
         "availableStores":available_stores,
@@ -946,6 +950,21 @@ pub(super) fn app_to_game(app: &Value) -> Option<Value> {
         "selectedVariantIndex":selected_index,
         "variants":variants,
     }))
+}
+
+fn content_ratings(ratings: &Value) -> Vec<Value> {
+    ratings
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|rating| {
+            Some(json!({
+                "system":rating["type"].as_str()?,
+                "category":rating["categoryKey"].as_str()?,
+                "descriptors":string_array(&rating["contentDescriptorKeys"]),
+            }))
+        })
+        .collect()
 }
 
 pub(super) fn bounded_id(
