@@ -3032,6 +3032,16 @@ fn gfn_feature_enabled(features: &Value, expected_key: &str) -> bool {
         || features.as_object().is_some_and(|_| matches(features))
 }
 
+fn gfn_feature_values(features: &Value, expected_key: &str) -> Vec<String> {
+    features
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|feature| feature["key"].as_str() == Some(expected_key))
+        .flat_map(|feature| string_array(&feature["values"]))
+        .collect()
+}
+
 fn image_values(value: &Value, width: u32) -> Vec<String> {
     let values = if let Some(items) = value.as_array() {
         items.iter().filter_map(Value::as_str).collect::<Vec<_>>()
@@ -4753,6 +4763,31 @@ pub(crate) mod tests {
             &json!({"key":"IN_GAME_SETTINGS_PERSISTENCE_ENABLED","value":"false"}),
             "IN_GAME_SETTINGS_PERSISTENCE_ENABLED"
         ));
+    }
+
+    #[test]
+    fn account_library_mapping_reports_rtx_reflex_and_hdr_per_store() {
+        let game = app_to_game(&json!({
+            "id":"cms-cyberpunk", "title":"Cyberpunk 2077",
+            "variants":[
+                {"id":"1001","appStore":"STEAM","gfn":{"features":[
+                    {"__typename":"GfnSubscriptionFeatureValue","key":"RTX_ENABLED","value":"true"},
+                    {"__typename":"GfnSubscriptionFeatureValue","key":"REFLEX_ENABLED","value":"true"},
+                    {"__typename":"GfnSubscriptionFeatureValue","key":"HDR_ENABLED","value":"true"},
+                    {"__typename":"GfnSubscriptionFeatureValueList","key":"SUPPORTED_HDR_VERSION","values":["HDR"]}
+                ]}},
+                {"id":"1002","appStore":"EPIC","gfn":{"features":[{"key":"HDR_ENABLED","value":"false"}]}},
+                {"id":"1003","appStore":"GOG"}
+            ]
+        }))
+        .unwrap();
+        let features = |index: usize| {
+            let variant = &game["variants"][index];
+            (variant["rtx"].clone(), variant["reflex"].clone(), variant["hdr"].clone(), variant["hdrVersions"].clone())
+        };
+        assert_eq!(features(0), (json!(true), json!(true), json!(true), json!(["HDR"])));
+        assert_eq!(features(1), (json!(false), json!(false), json!(false), json!([])));
+        assert_eq!(features(2), (json!(false), json!(false), json!(false), json!([])));
     }
 
     #[test]

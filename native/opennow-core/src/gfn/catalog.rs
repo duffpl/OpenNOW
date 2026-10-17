@@ -810,6 +810,7 @@ pub(super) fn app_to_game(app: &Value) -> Option<Value> {
             &variant["gfn"]["features"],
             "IN_GAME_SETTINGS_PERSISTENCE_ENABLED",
         );
+        let features = &variant["gfn"]["features"];
         let subscription = &variant["gfn"]["library"]["subscription"];
         Some(json!({
             "id":variant_id,
@@ -829,6 +830,10 @@ pub(super) fn app_to_game(app: &Value) -> Option<Value> {
             "stateDetails":serde_json::from_value::<crate::catalog_types::PatchDetails>(variant["gfn"]["stateDetails"].clone()).ok(),
             "gfnStatus":variant["gfn"]["status"],
             "supportsInGameSettingsPersistence":supports_persistence,
+            "rtx":gfn_feature_enabled(features, "RTX_ENABLED"),
+            "reflex":gfn_feature_enabled(features, "REFLEX_ENABLED"),
+            "hdr":gfn_feature_enabled(features, "HDR_ENABLED"),
+            "hdrVersions":gfn_feature_values(features, "SUPPORTED_HDR_VERSION"),
         }))
     }).collect::<Vec<_>>();
     let mut variant_ids = std::collections::HashSet::new();
