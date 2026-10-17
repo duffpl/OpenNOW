@@ -29,7 +29,7 @@ use thiserror::Error;
 
 use super::nvst_microphone::{MICROPHONE_QUEUE_CAPACITY, MicrophoneQueue};
 use super::nvst_network::is_vpn_interface;
-use super::nvst_udp_pump::UdpPump;
+use super::nvst_udp_pump::VideoSocket;
 use str0m::channel::ChannelId;
 use str0m::config::Fingerprint;
 use str0m::format::{Codec, FormatParams};
@@ -7377,8 +7377,8 @@ fn run_nvst_udp_receiver(
         return;
     }
     let local_port = socket.local_addr().map_or(0, |addr| addr.port());
-    let pump = match UdpPump::spawn(&socket, "opennow-nvst-rx", UDP_RECEIVE_POLL_INTERVAL) {
-        Ok(pump) => pump,
+    let video_socket = match VideoSocket::new(&socket, UDP_RECEIVE_POLL_INTERVAL) {
+        Ok(video_socket) => video_socket,
         Err(error) => {
             log_udp_error("video-pump-spawn", local_port, &error);
             return;
@@ -7490,7 +7490,7 @@ fn run_nvst_udp_receiver(
             last_ping = now;
         }
 
-        match pump.recv_from(&mut datagram) {
+        match video_socket.recv_from(&mut datagram) {
             Ok((length, source)) => 'datagram: {
                 inbound_datagrams += 1;
                 if inbound_datagrams == 1 {
@@ -7613,10 +7613,9 @@ fn run_nvst_udp_receiver(
                 ),
             );
             eprintln!(
-                "NVST rx-stats {} inbound={inbound_datagrams} pings={pings_sent} rr={receiver_reports_sent} pumpDropped={} socketMaxGapMs={}",
+                "NVST rx-stats {} inbound={inbound_datagrams} pings={pings_sent} rr={receiver_reports_sent}{}",
                 receiver.stats_line(stats_origin),
-                pump.dropped(),
-                pump.take_max_gap().as_millis(),
+                video_socket.take_stats(),
             );
         }
         let timeout = receiver.poll_timeout(now);

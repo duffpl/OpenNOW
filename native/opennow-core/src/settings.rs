@@ -469,8 +469,14 @@ impl SettingsStore {
             }
         }
         normalize_choice(&mut self.values, "frameGeneration", &["off", "2x"], "off");
-        normalize_choice(&mut self.values, "reportedPlatform", &["auto", "windows", "macos"], "auto");
-        crate::cloudmatch::set_reported_platform(self.values["reportedPlatform"].as_str().unwrap_or("auto"));
+        normalize_choice(
+            &mut self.values,
+            "reportedPlatform",
+            &crate::cloudmatch::ReportedPlatform::SETTING_CHOICES,
+            "auto",
+        );
+        crate::cloudmatch::ReportedPlatform::from_setting(self.values["reportedPlatform"].as_str())
+            .publish();
         normalize_choice(
             &mut self.values,
             "upscaling",
@@ -2586,6 +2592,21 @@ mod tests {
             json!(["game-a", "game-b"])
         );
         let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn reported_platform_is_limited_to_auto_or_a_desktop_os() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut store = SettingsStore::load(Some(directory.path().to_owned())).unwrap();
+        assert_eq!(store.all()["reportedPlatform"], json!("auto"));
+        for (value, kept) in [
+            (json!("windows"), "windows"),
+            (json!("macos"), "macos"),
+            (json!("linux"), "auto"),
+            (json!(true), "auto"),
+        ] {
+            assert_eq!(store.set("reportedPlatform", value).unwrap(), json!(kept));
+        }
     }
 
     #[test]

@@ -1473,7 +1473,7 @@ fn build_create_body(app_id: &str, params: &Value, settings: &Value, device_id: 
     features["trueHdr"] = json!(false);
     // As OpenNOW for macOS sends with HDR on, where HDR works. Without these an LG webOS TV
     // session was accepted as HDR yet the cloud PC's output stayed SDR (2026-10-13).
-    if hdr && setting_string(settings, "reportedPlatform", "auto") != "auto" {
+    if hdr && ReportedPlatform::from_settings(settings) != ReportedPlatform::Native {
         features["trueHdr"] = json!(true);
         features["sdrColorSpace"] = json!(2);
         features["hdrColorSpace"] = json!(0);
@@ -1829,8 +1829,16 @@ fn negotiated_profile(monitor: &Value, features: &Value) -> Value {
 }
 
 fn cloudmatch_headers(token: &str, device_id: &str) -> Result<HeaderMap, ServiceError> {
+    platform_headers(token, device_id, ReportedPlatform::published())
+}
+
+fn platform_headers(
+    token: &str,
+    device_id: &str,
+    platform: ReportedPlatform,
+) -> Result<HeaderMap, ServiceError> {
     let mut headers = HeaderMap::new();
-    let user_agent = bifrost_user_agent();
+    let user_agent = bifrost_user_agent(platform);
     insert_header(&mut headers, USER_AGENT, &user_agent)?;
     insert_header(&mut headers, AUTHORIZATION, &format!("GFNJWT {token}"))?;
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("text/plain"));
@@ -1844,9 +1852,9 @@ fn cloudmatch_headers(token: &str, device_id: &str) -> Result<HeaderMap, Service
         "nv-client-version",
         HeaderValue::from_static(GFN_CLIENT_VERSION),
     );
-    headers.insert("nv-device-os", HeaderValue::from_static(device_os()));
+    headers.insert("nv-device-os", HeaderValue::from_static(device_os(platform)));
     headers.insert("nv-device-type", HeaderValue::from_static(device_type()));
-    headers.insert("nv-device-make", HeaderValue::from_static(device_make()));
+    headers.insert("nv-device-make", HeaderValue::from_static(device_make(platform)));
     headers.insert("nv-device-model", HeaderValue::from_static(device_model()));
     insert_header(&mut headers, "x-device-id", device_id)?;
     insert_header(&mut headers, "x-nv-client-identity", &user_agent)?;
@@ -2552,66 +2560,103 @@ fn app_launch_mode(params: &Value) -> i64 {
     }
 }
 
-/// `reportedPlatform` lets an embedder on a platform CloudMatch treats as SDR-only (a TV running
-/// Linux) present as a desktop client, whose session the server sets up for HDR.
+/// The client OS presented to CloudMatch. `reportedPlatform` lets an embedder on a platform
+/// CloudMatch treats as SDR-only (a TV running Linux) present as a desktop client, whose session
+/// the server sets up for HDR.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ReportedPlatform {
+    Native,
+    Windows,
+    MacOs,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ClientOs {
+    Windows,
+    MacOs,
+    Linux,
+}
+
+const NATIVE_OS: ClientOs = if cfg!(target_os = "windows") {
+    ClientOs::Windows
+} else if cfg!(target_os = "macos") {
+    ClientOs::MacOs
+} else {
+    ClientOs::Linux
+};
+
+/// Request headers are built where no settings are at hand, so the settings store publishes
+/// the normalized choice here; it is the only writer.
+static PUBLISHED_PLATFORM: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+
+impl ReportedPlatform {
+    pub(crate) const SETTING_CHOICES: [&'static str; 3] = ["auto", "windows", "macos"];
+
+    fn from_settings(settings: &Value) -> Self {
+        Self::from_setting(settings["reportedPlatform"].as_str())
+    }
+
+    pub(crate) fn from_setting(value: Option<&str>) -> Self {
+        match value {
+            Some("windows") => Self::Windows,
+            Some("macos") => Self::MacOs,
+            _ => Self::Native,
+        }
+    }
+
+    pub(crate) fn publish(self) {
+        PUBLISHED_PLATFORM.store(self as u8, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    fn published() -> Self {
+        match PUBLISHED_PLATFORM.load(std::sync::atomic::Ordering::Relaxed) {
+            1 => Self::Windows,
+            2 => Self::MacOs,
+            _ => Self::Native,
+        }
+    }
+
+    fn os(self) -> ClientOs {
+        match self {
+            Self::Native => NATIVE_OS,
+            Self::Windows => ClientOs::Windows,
+            Self::MacOs => ClientOs::MacOs,
+        }
+    }
+}
+
 fn platform_name(settings: &Value) -> &'static str {
-    match setting_string(settings, "reportedPlatform", "auto").as_str() {
-        "windows" => return "windows",
-        "macos" => return "MacOSX",
-        _ => {}
+    match ReportedPlatform::from_settings(settings) {
+        ReportedPlatform::Windows => return "windows",
+        ReportedPlatform::MacOs => return "MacOSX",
+        ReportedPlatform::Native => {}
     }
     if setting_bool(settings, "identifyAsSteamDeck", false) {
-        "SteamOS"
-    } else if cfg!(target_os = "windows") {
-        "Windows"
-    } else if cfg!(target_os = "macos") {
-        "MacOSX"
-    } else {
-        "Linux"
+        return "SteamOS";
+    }
+    match NATIVE_OS {
+        ClientOs::Windows => "Windows",
+        ClientOs::MacOs => "MacOSX",
+        ClientOs::Linux => "Linux",
     }
 }
 
-fn device_os() -> &'static str {
-    match reported_platform() {
-        "windows" => return "WINDOWS",
-        "macos" => return "MACOS",
-        _ => {}
+fn device_os(platform: ReportedPlatform) -> &'static str {
+    match platform.os() {
+        ClientOs::Windows => "WINDOWS",
+        ClientOs::MacOs => "MACOS",
+        ClientOs::Linux => "LINUX",
     }
-    if cfg!(target_os = "windows") {
-        "WINDOWS"
-    } else if cfg!(target_os = "macos") {
-        "MACOS"
-    } else {
-        "LINUX"
-    }
-}
-
-/// Mirrors the `reportedPlatform` setting for the request headers, which are built in places
-/// that have no settings at hand.
-static REPORTED_PLATFORM: std::sync::RwLock<&'static str> = std::sync::RwLock::new("auto");
-
-pub(crate) fn set_reported_platform(value: &str) {
-    let value = match value {
-        "windows" => "windows",
-        "macos" => "macos",
-        _ => "auto",
-    };
-    *REPORTED_PLATFORM.write().unwrap_or_else(std::sync::PoisonError::into_inner) = value;
-}
-
-fn reported_platform() -> &'static str {
-    *REPORTED_PLATFORM.read().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 fn device_type() -> &'static str {
     "DESKTOP"
 }
 
-fn device_make() -> &'static str {
-    if reported_platform() == "macos" || (reported_platform() == "auto" && cfg!(target_os = "macos")) {
-        "Apple"
-    } else {
-        "UNKNOWN"
+fn device_make(platform: ReportedPlatform) -> &'static str {
+    match platform.os() {
+        ClientOs::MacOs => "Apple",
+        ClientOs::Windows | ClientOs::Linux => "UNKNOWN",
     }
 }
 
@@ -2619,13 +2664,11 @@ fn device_model() -> &'static str {
     "UNKNOWN"
 }
 
-fn bifrost_user_agent() -> String {
-    let platform = if reported_platform() == "windows" || (reported_platform() == "auto" && cfg!(target_os = "windows")) {
-        "Windows NT 10.0"
-    } else if reported_platform() == "macos" || cfg!(target_os = "macos") {
-        "MacOSX"
-    } else {
-        "Linux"
+fn bifrost_user_agent(platform: ReportedPlatform) -> String {
+    let platform = match platform.os() {
+        ClientOs::Windows => "Windows NT 10.0",
+        ClientOs::MacOs => "MacOSX",
+        ClientOs::Linux => "Linux",
     };
     format!("GFN-PC/30.0 ({platform}) BifrostClientSDK/4.9 (38495286)")
 }
@@ -4688,6 +4731,57 @@ mod tests {
             mark_resume_progress(&mut info);
             assert_eq!(info["resumePending"], false);
             assert_eq!(info["phase"], session_phase(status));
+        }
+    }
+
+    #[test]
+    fn reported_platform_presents_one_desktop_os_in_every_header() {
+        for (platform, user_agent, os, make) in [
+            (ReportedPlatform::Windows, "Windows NT 10.0", "WINDOWS", "UNKNOWN"),
+            (ReportedPlatform::MacOs, "MacOSX", "MACOS", "Apple"),
+        ] {
+            let headers = platform_headers("token", "device-id", platform).unwrap();
+            let agent = headers[USER_AGENT].to_str().unwrap();
+            assert!(agent.contains(&format!("({user_agent})")), "{agent}");
+            assert_eq!(headers["x-nv-client-identity"], agent);
+            assert_eq!(headers["nv-device-os"], os);
+            assert_eq!(headers["nv-device-make"], make);
+        }
+        let native = platform_headers("token", "device-id", ReportedPlatform::Native).unwrap();
+        let native_os = if cfg!(target_os = "windows") {
+            "WINDOWS"
+        } else if cfg!(target_os = "macos") {
+            "MACOS"
+        } else {
+            "LINUX"
+        };
+        assert_eq!(native["nv-device-os"], native_os);
+    }
+
+    #[test]
+    fn hdr_as_a_reported_desktop_requests_true_hdr() {
+        let settings = |reported: &str, hdr: bool| {
+            json!({"codec":"h265","enableHdr":hdr,"nativeHdrSupported":true,
+                "reportedPlatform":reported})
+        };
+        let features = |body: &Value| body["sessionRequestData"]["requestedStreamingFeatures"].clone();
+
+        let windows = build_create_body("123", &json!({}), &settings("windows", true), "device");
+        assert_eq!(windows["sessionRequestData"]["clientPlatformName"], "windows");
+        let requested = features(&windows);
+        assert_eq!(requested["trueHdr"], true);
+        assert_eq!(requested["sdrColorSpace"], 2);
+        assert_eq!(requested["hdrColorSpace"], 0);
+
+        let macos = build_create_body("123", &json!({}), &settings("macos", true), "device");
+        assert_eq!(macos["sessionRequestData"]["clientPlatformName"], "MacOSX");
+        assert_eq!(features(&macos)["trueHdr"], true);
+
+        for (reported, hdr) in [("auto", true), ("windows", false), ("bogus", true)] {
+            let body = build_create_body("123", &json!({}), &settings(reported, hdr), "device");
+            let requested = features(&body);
+            assert_eq!(requested["trueHdr"], false, "{reported} hdr={hdr}");
+            assert!(requested.get("sdrColorSpace").is_none(), "{reported} hdr={hdr}");
         }
     }
 

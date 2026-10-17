@@ -24,7 +24,10 @@ desktop-platform = ["dep:opennow-streamer-platform"]
 # A runtime with the same API whose decode/output is supplied by the embedding application
 # (LG webOS, where the TV's hardware decoder is driven outside this workspace). Build it with
 # `default-features = false`; the two are mutually exclusive.
-webos-platform = ["dep:opennow-streamer-platform-webos"]
+webos-platform = [
+    "dep:opennow-streamer-platform-webos",
+    "opennow-streamer-transport/udp-receive-thread",
+]
 
 [dev-dependencies]
 rcgen = { version = "0.14", default-features = false, features = ["crypto", "ring"] }

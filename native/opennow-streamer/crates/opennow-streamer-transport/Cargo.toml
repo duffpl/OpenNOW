@@ -39,6 +39,9 @@ serde_json.workspace = true
 
 [features]
 sony-peer-probe = []
+# Drains the video socket on a thread of its own, for platforms whose kernel receive buffer
+# cannot be enlarged enough to absorb a keyframe burst (LG webOS caps it at 512 KiB).
+udp-receive-thread = []
 
 [[bin]]
 name = "nvst-peer-probe"
